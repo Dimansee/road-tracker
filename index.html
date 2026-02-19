@@ -22,7 +22,25 @@
 
 <script>
 
-let map = L.map('map').setView([0, 0], 2);
+const API = "http://127.0.0.1:5000";
+const gridSize = 0.0005;
+
+let userId = null;
+let username = prompt("Enter username:");
+
+fetch(API + "/login", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({username})
+})
+.then(res => res.json())
+.then(data => {
+    userId = data.user_id;
+    loadTerritories();
+    startTracking();
+});
+
+let map = L.map('map').setView([0,0],2);
 
 L.tileLayer(
     'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
@@ -30,63 +48,77 @@ L.tileLayer(
 ).addTo(map);
 
 let marker;
-let routeLine;
-let routeCoordinates = [];
+let drawnBlocks = {};
 
-// Load saved route
-let savedRoute = localStorage.getItem("savedRoute");
-if (savedRoute) {
-    routeCoordinates = JSON.parse(savedRoute);
-    routeLine = L.polyline(routeCoordinates, {
-        color: 'blue',
-        weight: 5
+function getBlockId(lat,lng){
+    let x = Math.floor(lat/gridSize);
+    let y = Math.floor(lng/gridSize);
+    return x + "_" + y;
+}
+
+function drawBlock(blockId, ownerId){
+    let parts = blockId.split("_");
+    let x = parseInt(parts[0]) * gridSize;
+    let y = parseInt(parts[1]) * gridSize;
+
+    let bounds = [
+        [x,y],
+        [x+gridSize,y+gridSize]
+    ];
+
+    let color = ownerId == userId ? "green" : "blue";
+
+    L.rectangle(bounds,{
+        color:color,
+        fillColor:color,
+        fillOpacity:0.4
     }).addTo(map);
 }
 
-if (!navigator.geolocation) {
-    alert("Geolocation not supported");
-} else {
+function loadTerritories(){
+    fetch(API + "/territories")
+    .then(res=>res.json())
+    .then(data=>{
+        data.forEach(block=>{
+            drawBlock(block.block_id, block.owner_id);
+        });
+    });
+}
 
-    navigator.geolocation.watchPosition(
-        function(position) {
+function startTracking(){
+    navigator.geolocation.watchPosition(pos=>{
 
-            let lat = position.coords.latitude;
-            let lng = position.coords.longitude;
+        let lat = pos.coords.latitude;
+        let lng = pos.coords.longitude;
 
-            let newPoint = [lat, lng];
+        let blockId = getBlockId(lat,lng);
 
-            if (!marker) {
-                marker = L.marker(newPoint).addTo(map);
+        if(!drawnBlocks[blockId]){
+            fetch(API + "/capture",{
+                method:"POST",
+                headers:{"Content-Type":"application/json"},
+                body:JSON.stringify({
+                    block_id:blockId,
+                    user_id:userId
+                })
+            });
 
-                if (!routeLine) {
-                    routeLine = L.polyline([], {
-                        color: 'blue',
-                        weight: 5
-                    }).addTo(map);
-                }
-
-                map.setView(newPoint, 18);
-            }
-
-            marker.setLatLng(newPoint);
-
-            routeCoordinates.push(newPoint);
-            routeLine.setLatLngs(routeCoordinates);
-
-            localStorage.setItem("savedRoute", JSON.stringify(routeCoordinates));
-
-        },
-        function(error) {
-            alert("Location error: " + error.message);
-        },
-        {
-            enableHighAccuracy: true
+            drawnBlocks[blockId]=true;
+            drawBlock(blockId,userId);
         }
-    );
 
+        if(!marker){
+            marker=L.marker([lat,lng]).addTo(map);
+            map.setView([lat,lng],17);
+        }else{
+            marker.setLatLng([lat,lng]);
+        }
+
+    });
 }
 
 </script>
 
 </body>
 </html>
+
