@@ -6,19 +6,74 @@
 
     <link
         rel="stylesheet"
-        href="https://unpkg.com/leaflet/dist/leaflet.css"
+        href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
     />
 
     <style>
-        body { margin: 0; }
-        #map { height: 100vh; }
+        body { margin: 0; font-family: Arial; }
+
+        .screen {
+            display: none;
+            height: calc(100vh - 60px);
+        }
+
+        #map { height: 100%; }
+
+        .bottom-nav {
+            height: 60px;
+            display: flex;
+            background: #111;
+            color: white;
+            position: fixed;
+            bottom: 0;
+            width: 100%;
+        }
+
+        .tab {
+            flex: 1;
+            text-align: center;
+            line-height: 60px;
+            cursor: pointer;
+        }
+
+        .active {
+            background: #2ecc71;
+        }
     </style>
 </head>
 <body>
 
-<div id="map"></div>
+<!-- SCREENS -->
 
-<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<div id="home" class="screen">
+    <div id="map"></div>
+</div>
+
+<div id="tour" class="screen">
+    <h2 style="padding:20px;">City Tour</h2>
+    <p style="padding:20px;">All places you have visited will appear here.</p>
+</div>
+
+<div id="territory" class="screen">
+    <h2 style="padding:20px;">My Territory</h2>
+    <p style="padding:20px;">Blocks you own will appear here.</p>
+</div>
+
+<div id="account" class="screen">
+    <h2 style="padding:20px;">Account</h2>
+    <p style="padding:20px;" id="userInfo"></p>
+</div>
+
+<!-- NAVIGATION -->
+
+<div class="bottom-nav">
+    <div class="tab active" onclick="showScreen('home',this)">Home</div>
+    <div class="tab" onclick="showScreen('tour',this)">Tour</div>
+    <div class="tab" onclick="showScreen('territory',this)">Territory</div>
+    <div class="tab" onclick="showScreen('account',this)">Account</div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <script>
 
@@ -36,9 +91,20 @@ fetch(API + "/login", {
 .then(res => res.json())
 .then(data => {
     userId = data.user_id;
+    document.getElementById("userInfo").innerText = "Logged in as: " + username;
     loadTerritories();
     startTracking();
 });
+
+function showScreen(id, element) {
+    document.querySelectorAll(".screen").forEach(s => s.style.display = "none");
+    document.getElementById(id).style.display = "block";
+
+    document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+    element.classList.add("active");
+}
+
+showScreen("home", document.querySelector(".tab"));
 
 let map = L.map('map').setView([0,0],2);
 
@@ -121,7 +187,3 @@ function startTracking(){
 
 </body>
 </html>
-
-
-
-
