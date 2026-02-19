@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Road Tracker</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <link
+        rel="stylesheet"
+        href="https://unpkg.com/leaflet/dist/leaflet.css"
+    />
+
+    <style>
+        body { margin: 0; }
+        #map { height: 100vh; }
+    </style>
+</head>
+<body>
+
+<div id="map"></div>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+<script>
+
+let map = L.map('map').setView([0, 0], 2);
+
+L.tileLayer(
+    'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    { attribution: '© OpenStreetMap contributors' }
+).addTo(map);
+
+let marker;
+let routeLine;
+let routeCoordinates = [];
+
+// Load saved route
+let savedRoute = localStorage.getItem("savedRoute");
+if (savedRoute) {
+    routeCoordinates = JSON.parse(savedRoute);
+    routeLine = L.polyline(routeCoordinates, {
+        color: 'blue',
+        weight: 5
+    }).addTo(map);
+}
+
+if (!navigator.geolocation) {
+    alert("Geolocation not supported");
+} else {
+
+    navigator.geolocation.watchPosition(
+        function(position) {
+
+            let lat = position.coords.latitude;
+            let lng = position.coords.longitude;
+
+            let newPoint = [lat, lng];
+
+            if (!marker) {
+                marker = L.marker(newPoint).addTo(map);
+
+                if (!routeLine) {
+                    routeLine = L.polyline([], {
+                        color: 'blue',
+                        weight: 5
+                    }).addTo(map);
+                }
+
+                map.setView(newPoint, 18);
+            }
+
+            marker.setLatLng(newPoint);
+
+            routeCoordinates.push(newPoint);
+            routeLine.setLatLngs(routeCoordinates);
+
+            localStorage.setItem("savedRoute", JSON.stringify(routeCoordinates));
+
+        },
+        function(error) {
+            alert("Location error: " + error.message);
+        },
+        {
+            enableHighAccuracy: true
+        }
+    );
+
+}
+
+</script>
+
+</body>
+</html>
