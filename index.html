@@ -1,243 +1,256 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Road Tracker</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Territory Runner</title>
 
-    <link
-        rel="stylesheet"
-        href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-    />
+<link rel="stylesheet"
+href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 
-    <style>
-        body { margin: 0; font-family: Arial; }
+<style>
+body { margin:0; font-family:Arial; background:#f5f5f5; }
 
-        .screen {
-            display: none;
-            height: calc(100vh - 60px);
-        }
+.screen{
+  display:none;
+  height:calc(100vh - 65px);
+}
 
-        #map { height: 100%; }
+#map,#tourMap,#territoryMap{
+  height:100%;
+}
 
-        .bottom-nav {
-            height: 60px;
-            display: flex;
-            background: #111;
-            color: white;
-            position: fixed;
-            bottom: 0;
-            width: 100%;
-        }
+.bottom-nav{
+  position:fixed;
+  bottom:0;
+  width:100%;
+  height:65px;
+  background:#111;
+  display:flex;
+  justify-content:space-around;
+  align-items:center;
+  color:white;
+}
 
-        .tab {
-            flex: 1;
-            text-align: center;
-            line-height: 60px;
-            cursor: pointer;
-        }
+.tab{
+  flex:1;
+  text-align:center;
+  font-size:14px;
+  cursor:pointer;
+}
 
-        .active {
-            background: #2ecc71;
-        }
-    </style>
+.active{
+  background:#2ecc71;
+  padding:8px;
+  border-radius:10px;
+}
+
+.account-container{
+  padding:20px;
+}
+
+input{
+  width:100%;
+  padding:10px;
+  margin-bottom:15px;
+  border-radius:8px;
+  border:1px solid #ccc;
+}
+
+button{
+  width:100%;
+  padding:10px;
+  border:none;
+  border-radius:8px;
+  background:#2ecc71;
+  color:white;
+  font-size:16px;
+}
+
+</style>
 </head>
 <body>
 
 <!-- SCREENS -->
 
 <div id="home" class="screen">
-    <div id="map"></div>
+  <div id="map"></div>
 </div>
 
 <div id="tour" class="screen">
-    <h2 style="padding:20px;">City Tour</h2>
-    <p style="padding:20px;">All places you have visited will appear here.</p>
+  <div id="tourMap"></div>
 </div>
 
 <div id="territory" class="screen">
-    <h2 style="padding:20px;">My Territory</h2>
-    <p style="padding:20px;">Blocks you own will appear here.</p>
+  <div id="territoryMap"></div>
 </div>
 
 <div id="account" class="screen">
-    <h2 style="padding:20px;">Account</h2>
-    <p style="padding:20px;" id="userInfo"></p>
+  <div class="account-container">
+    <h3>Profile</h3>
+    <input id="accUsername" placeholder="Username (required)">
+    <input id="accBio" placeholder="Bio">
+    <input id="accPhone" placeholder="Phone">
+    <input id="accCity" placeholder="Home Town">
+    <button onclick="saveProfile()">Save Profile</button>
+  </div>
 </div>
 
-<!-- NAVIGATION -->
+<!-- BOTTOM NAV -->
 
 <div class="bottom-nav">
-    <div class="tab active" onclick="showScreen('home',this)">Home</div>
-    <div class="tab" onclick="showScreen('tour',this)">Tour</div>
-    <div class="tab" onclick="showScreen('territory',this)">Territory</div>
-    <div class="tab" onclick="showScreen('account',this)">Account</div>
+  <div class="tab active" onclick="showScreen('home',this)">Home</div>
+  <div class="tab" onclick="showScreen('tour',this)">Tour</div>
+  <div class="tab" onclick="showScreen('territory',this)">Territory</div>
+  <div class="tab" onclick="showScreen('account',this)">Account</div>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <script>
 
-const API = "https://territory-backend-production.up.railway.app";
-const gridSize = 0.0002;
+const API="https://territory-backend-production.up.railway.app";
+const gridSize=0.0002;
 
-let userId = null;
-let username = prompt("Enter username:");
-let currentCity = null;
-let visitedCities = new Set();
+let userId=null;
+let username=localStorage.getItem("username");
 
-fetch(API + "/login", {
-    method: "POST",
-    headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({username})
+if(!username){
+  username=prompt("Enter username:");
+  localStorage.setItem("username",username);
+}
+
+document.getElementById("accUsername").value=username;
+
+fetch(API+"/login",{
+method:"POST",
+headers:{"Content-Type":"application/json"},
+body:JSON.stringify({username})
 })
-.then(res => res.json())
-.then(data => {
-    userId = data.user_id;
-    document.getElementById("userInfo").innerText = "Logged in as: " + username;
-    loadTerritories();
-    startTracking();
+.then(res=>res.json())
+.then(data=>{
+  userId=data.user_id;
+  loadTerritories();
+  startTracking();
 });
 
-function showScreen(id, element) {
-    document.querySelectorAll(".screen").forEach(s => s.style.display = "none");
-    document.getElementById(id).style.display = "block";
+function showScreen(id,el){
+  document.querySelectorAll(".screen").forEach(s=>s.style.display="none");
+  document.getElementById(id).style.display="block";
+  document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
+  el.classList.add("active");
 
-    document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
-    element.classList.add("active");
-
-    if(id === "tour"){
-        renderVisitedCities();
-    }
+  setTimeout(()=>{
+    map.invalidateSize();
+    tourMap.invalidateSize();
+    territoryMap.invalidateSize();
+  },200);
 }
 
-showScreen("home", document.querySelector(".tab"));
+showScreen("home",document.querySelector(".tab"));
 
-let map = L.map('map');
+let map=L.map('map');
+let tourMap=L.map('tourMap');
+let territoryMap=L.map('territoryMap');
 
-L.tileLayer(
-    'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-    { attribution: '© OpenStreetMap contributors' }
-).addTo(map);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png')
+.addTo(map);
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png')
+.addTo(tourMap);
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png')
+.addTo(territoryMap);
 
 let marker;
-let drawnBlocks = {};
+let drawnBlocks={};
+let myBlocks=[];
 
 function getBlockId(lat,lng){
-    let x = Math.floor(lat/gridSize);
-    let y = Math.floor(lng/gridSize);
-    return x + "_" + y;
+  let x=Math.floor(lat/gridSize);
+  let y=Math.floor(lng/gridSize);
+  return x+"_"+y;
 }
 
-function drawBlock(blockId, ownerId){
-    let parts = blockId.split("_");
-    let x = parseInt(parts[0]) * gridSize;
-    let y = parseInt(parts[1]) * gridSize;
+function drawBlock(blockId,ownerId,targetMap){
+  let parts=blockId.split("_");
+  let x=parseInt(parts[0])*gridSize;
+  let y=parseInt(parts[1])*gridSize;
 
-    let bounds = [
-        [x,y],
-        [x+gridSize,y+gridSize]
-    ];
+  let bounds=[[x,y],[x+gridSize,y+gridSize]];
 
-    let color = ownerId == userId ? "green" : "blue";
+  let color;
 
-    L.rectangle(bounds,{
-        color:color,
-        fillColor:color,
-        fillOpacity:0.4
-    }).addTo(map);
+  if(ownerId==userId) color="green";
+  else if(myBlocks.includes(blockId)) color="yellow";
+  else color="red";
+
+  L.rectangle(bounds,{
+    color:color,
+    fillColor:color,
+    fillOpacity:0.5
+  }).addTo(targetMap);
 }
 
 function loadTerritories(){
-    fetch(API + "/territories")
-    .then(res=>res.json())
-    .then(data=>{
-        data.forEach(block=>{
-            drawBlock(block.block_id, block.owner_id);
-        });
+  fetch(API+"/territories")
+  .then(res=>res.json())
+  .then(data=>{
+    data.forEach(block=>{
+      drawBlock(block.block_id,block.owner_id,map);
     });
-}
-
-function reverseGeocode(lat, lng){
-    fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`)
-    .then(res=>res.json())
-    .then(data=>{
-        if(!data.address) return;
-
-        let detectedCity =
-            data.address.city ||
-            data.address.town ||
-            data.address.village ||
-            data.address.hamlet ||
-            data.address.county;
-
-        if(detectedCity && detectedCity !== currentCity){
-            currentCity = detectedCity;
-            visitedCities.add(currentCity);
-            console.log("Entered city:", currentCity);
-        }
-    })
-    .catch(err=>{
-        console.log("Reverse geocode error:", err);
-    });
-}
-
-function renderVisitedCities(){
-    let tourScreen = document.getElementById("tour");
-
-    let cityList = "<ul style='padding:20px;'>";
-    visitedCities.forEach(city=>{
-        cityList += "<li>" + city + "</li>";
-    });
-    cityList += "</ul>";
-
-    tourScreen.innerHTML = `
-        <h2 style="padding:20px;">City Tour</h2>
-        <p style="padding:20px;">Cities you have visited:</p>
-        ${cityList}
-    `;
+  });
 }
 
 function startTracking(){
-    navigator.geolocation.watchPosition(pos=>{
+navigator.geolocation.watchPosition(pos=>{
 
-        let lat = pos.coords.latitude;
-        let lng = pos.coords.longitude;
+let lat=pos.coords.latitude;
+let lng=pos.coords.longitude;
 
-        // Reverse geocode city
-        reverseGeocode(lat, lng);
+let blockId=getBlockId(lat,lng);
 
-        let blockId = getBlockId(lat,lng);
+if(!drawnBlocks[blockId]){
+fetch(API+"/capture",{
+method:"POST",
+headers:{"Content-Type":"application/json"},
+body:JSON.stringify({
+block_id:blockId,
+user_id:userId
+})
+});
 
-        if(!drawnBlocks[blockId]){
-            fetch(API + "/capture",{
-                method:"POST",
-                headers:{"Content-Type":"application/json"},
-                body:JSON.stringify({
-                    block_id:blockId,
-                    user_id:userId
-                })
-            });
+drawnBlocks[blockId]=true;
+myBlocks.push(blockId);
 
-            drawnBlocks[blockId]=true;
-            drawBlock(blockId,userId);
-        }
+drawBlock(blockId,userId,map);
+drawBlock(blockId,userId,tourMap);
+drawBlock(blockId,userId,territoryMap);
+}
 
-        if(!marker){
-            marker=L.marker([lat,lng]).addTo(map);
-            map.setView([lat,lng],18);
-        }else{
-            marker.setLatLng([lat,lng]);
-        }
+if(!marker){
+marker=L.marker([lat,lng]).addTo(map);
+map.setView([lat,lng],18);
+tourMap.setView([lat,lng],16);
+territoryMap.setView([lat,lng],16);
+}else{
+marker.setLatLng([lat,lng]);
+}
 
-    }, err=>{
-        alert("Location access denied.");
-    }, {
-        enableHighAccuracy: true
-    });
+});
+}
+
+function saveProfile(){
+let profile={
+username:document.getElementById("accUsername").value,
+bio:document.getElementById("accBio").value,
+phone:document.getElementById("accPhone").value,
+city:document.getElementById("accCity").value
+};
+
+localStorage.setItem("profile",JSON.stringify(profile));
+alert("Profile Saved");
 }
 
 </script>
-
 </body>
 </html>
-
