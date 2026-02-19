@@ -8,36 +8,50 @@
 href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 
 <style>
-body { margin:0; font-family:Arial; }
-
-.screen{
-display:none;
-height:calc(100vh - 65px);
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+  font-family: Arial;
 }
 
-#map,#tourMap,#territoryMap{
-height:100%;
+.screen {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 65px;   /* reserve space for bottom nav */
+  display: none;
 }
 
-.bottom-nav{
-position:fixed;
-bottom:0;
-width:100%;
-height:65px;
-background:#111;
-display:flex;
-color:white;
+#map, #tourMap, #territoryMap {
+  width: 100%;
+  height: 100%;
 }
 
-.tab{
-flex:1;
-text-align:center;
-line-height:65px;
-cursor:pointer;
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 65px;
+  background: #111;
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  color: white;
+  z-index: 9999; /* ensure always above map */
 }
 
-.active{
-background:#2ecc71;
+.tab {
+  flex: 1;
+  text-align: center;
+  cursor: pointer;
+}
+
+.active {
+  background: #2ecc71;
 }
 
 input,button{
@@ -111,11 +125,16 @@ startTracking();
 });
 
 function showScreen(id,el){
-document.querySelectorAll(".screen").forEach(s=>s.style.display="none");
-document.getElementById(id).style.display="block";
-document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
-el.classList.add("active");
-if(id==="leaderboard") loadLeaderboard();
+  document.querySelectorAll(".screen").forEach(s=>s.style.display="none");
+  document.getElementById(id).style.display="block";
+  document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
+  el.classList.add("active");
+
+  setTimeout(()=>{
+    map.invalidateSize();
+    tourMap.invalidateSize();
+    territoryMap.invalidateSize();
+  },200);
 }
 
 showScreen("home",document.querySelector(".tab"));
@@ -239,3 +258,4 @@ document.getElementById("leaderboardList").innerHTML=html;
 </script>
 </body>
 </html>
+
