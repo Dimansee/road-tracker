@@ -8,100 +8,76 @@
 href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 
 <style>
-body { margin:0; font-family:Arial; background:#f5f5f5; }
+body { margin:0; font-family:Arial; }
 
 .screen{
-  display:none;
-  height:calc(100vh - 65px);
+display:none;
+height:calc(100vh - 65px);
 }
 
 #map,#tourMap,#territoryMap{
-  height:100%;
+height:100%;
 }
 
 .bottom-nav{
-  position:fixed;
-  bottom:0;
-  width:100%;
-  height:65px;
-  background:#111;
-  display:flex;
-  justify-content:space-around;
-  align-items:center;
-  color:white;
+position:fixed;
+bottom:0;
+width:100%;
+height:65px;
+background:#111;
+display:flex;
+color:white;
 }
 
 .tab{
-  flex:1;
-  text-align:center;
-  font-size:14px;
-  cursor:pointer;
+flex:1;
+text-align:center;
+line-height:65px;
+cursor:pointer;
 }
 
 .active{
-  background:#2ecc71;
-  padding:8px;
-  border-radius:10px;
+background:#2ecc71;
 }
 
-.account-container{
-  padding:20px;
-}
-
-input{
-  width:100%;
-  padding:10px;
-  margin-bottom:15px;
-  border-radius:8px;
-  border:1px solid #ccc;
-}
-
-button{
-  width:100%;
-  padding:10px;
-  border:none;
-  border-radius:8px;
-  background:#2ecc71;
-  color:white;
-  font-size:16px;
+input,button{
+width:100%;
+padding:10px;
+margin-bottom:10px;
 }
 
 </style>
 </head>
 <body>
 
-<!-- SCREENS -->
-
-<div id="home" class="screen">
-  <div id="map"></div>
-</div>
-
-<div id="tour" class="screen">
-  <div id="tourMap"></div>
-</div>
-
-<div id="territory" class="screen">
-  <div id="territoryMap"></div>
-</div>
+<div id="home" class="screen"><div id="map"></div></div>
+<div id="tour" class="screen"><div id="tourMap"></div></div>
+<div id="territory" class="screen"><div id="territoryMap"></div></div>
 
 <div id="account" class="screen">
-  <div class="account-container">
-    <h3>Profile</h3>
-    <input id="accUsername" placeholder="Username (required)">
-    <input id="accBio" placeholder="Bio">
-    <input id="accPhone" placeholder="Phone">
-    <input id="accCity" placeholder="Home Town">
-    <button onclick="saveProfile()">Save Profile</button>
-  </div>
+<div style="padding:20px;">
+<h3>Profile</h3>
+<input id="accUsername" disabled>
+<input id="accBio" placeholder="Bio">
+<input id="accPhone" placeholder="Phone">
+<input id="accCity" placeholder="Hometown">
+<button onclick="saveProfile()">Save</button>
+</div>
 </div>
 
-<!-- BOTTOM NAV -->
+<div id="leaderboard" class="screen">
+<div style="padding:20px;">
+<h3>Leaderboard</h3>
+<div id="leaderboardList"></div>
+</div>
+</div>
 
 <div class="bottom-nav">
-  <div class="tab active" onclick="showScreen('home',this)">Home</div>
-  <div class="tab" onclick="showScreen('tour',this)">Tour</div>
-  <div class="tab" onclick="showScreen('territory',this)">Territory</div>
-  <div class="tab" onclick="showScreen('account',this)">Account</div>
+<div class="tab active" onclick="showScreen('home',this)">Home</div>
+<div class="tab" onclick="showScreen('tour',this)">Tour</div>
+<div class="tab" onclick="showScreen('territory',this)">Territory</div>
+<div class="tab" onclick="showScreen('leaderboard',this)">Ranks</div>
+<div class="tab" onclick="showScreen('account',this)">Account</div>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -115,8 +91,8 @@ let userId=null;
 let username=localStorage.getItem("username");
 
 if(!username){
-  username=prompt("Enter username:");
-  localStorage.setItem("username",username);
+username=prompt("Enter username:");
+localStorage.setItem("username",username);
 }
 
 document.getElementById("accUsername").value=username;
@@ -128,22 +104,18 @@ body:JSON.stringify({username})
 })
 .then(res=>res.json())
 .then(data=>{
-  userId=data.user_id;
-  loadTerritories();
-  startTracking();
+userId=data.user_id;
+loadProfile();
+loadTerritories();
+startTracking();
 });
 
 function showScreen(id,el){
-  document.querySelectorAll(".screen").forEach(s=>s.style.display="none");
-  document.getElementById(id).style.display="block";
-  document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
-  el.classList.add("active");
-
-  setTimeout(()=>{
-    map.invalidateSize();
-    tourMap.invalidateSize();
-    territoryMap.invalidateSize();
-  },200);
+document.querySelectorAll(".screen").forEach(s=>s.style.display="none");
+document.getElementById(id).style.display="block";
+document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
+el.classList.add("active");
+if(id==="leaderboard") loadLeaderboard();
 }
 
 showScreen("home",document.querySelector(".tab"));
@@ -152,58 +124,48 @@ let map=L.map('map');
 let tourMap=L.map('tourMap');
 let territoryMap=L.map('territoryMap');
 
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png')
-.addTo(map);
-
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png')
-.addTo(tourMap);
-
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png')
-.addTo(territoryMap);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(tourMap);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(territoryMap);
 
 let marker;
-let drawnBlocks={};
 let myBlocks=[];
+let drawnBlocks={};
 
 function getBlockId(lat,lng){
-  let x=Math.floor(lat/gridSize);
-  let y=Math.floor(lng/gridSize);
-  return x+"_"+y;
+let x=Math.floor(lat/gridSize);
+let y=Math.floor(lng/gridSize);
+return x+"_"+y;
 }
 
 function drawBlock(blockId,ownerId,targetMap){
-  let parts=blockId.split("_");
-  let x=parseInt(parts[0])*gridSize;
-  let y=parseInt(parts[1])*gridSize;
+let parts=blockId.split("_");
+let x=parseInt(parts[0])*gridSize;
+let y=parseInt(parts[1])*gridSize;
 
-  let bounds=[[x,y],[x+gridSize,y+gridSize]];
+let bounds=[[x,y],[x+gridSize,y+gridSize]];
 
-  let color;
+let color;
+if(ownerId==userId) color="green";
+else if(myBlocks.includes(blockId)) color="yellow";
+else color="red";
 
-  if(ownerId==userId) color="green";
-  else if(myBlocks.includes(blockId)) color="yellow";
-  else color="red";
-
-  L.rectangle(bounds,{
-    color:color,
-    fillColor:color,
-    fillOpacity:0.5
-  }).addTo(targetMap);
+L.rectangle(bounds,{color:color,fillColor:color,fillOpacity:0.5})
+.addTo(targetMap);
 }
 
 function loadTerritories(){
-  fetch(API+"/territories")
-  .then(res=>res.json())
-  .then(data=>{
-    data.forEach(block=>{
-      drawBlock(block.block_id,block.owner_id,map);
-    });
-  });
+fetch(API+"/territories")
+.then(res=>res.json())
+.then(data=>{
+data.forEach(block=>{
+drawBlock(block.block_id,block.owner_id,map);
+});
+});
 }
 
 function startTracking(){
 navigator.geolocation.watchPosition(pos=>{
-
 let lat=pos.coords.latitude;
 let lng=pos.coords.longitude;
 
@@ -218,7 +180,6 @@ block_id:blockId,
 user_id:userId
 })
 });
-
 drawnBlocks[blockId]=true;
 myBlocks.push(blockId);
 
@@ -235,20 +196,44 @@ territoryMap.setView([lat,lng],16);
 }else{
 marker.setLatLng([lat,lng]);
 }
-
 });
 }
 
 function saveProfile(){
-let profile={
-username:document.getElementById("accUsername").value,
+fetch(API+"/update_profile",{
+method:"POST",
+headers:{"Content-Type":"application/json"},
+body:JSON.stringify({
+user_id:userId,
 bio:document.getElementById("accBio").value,
 phone:document.getElementById("accPhone").value,
-city:document.getElementById("accCity").value
-};
+hometown:document.getElementById("accCity").value
+})
+})
+.then(res=>res.json())
+.then(()=>alert("Profile saved"));
+}
 
-localStorage.setItem("profile",JSON.stringify(profile));
-alert("Profile Saved");
+function loadProfile(){
+fetch(API+"/get_profile/"+userId)
+.then(res=>res.json())
+.then(data=>{
+document.getElementById("accBio").value=data.bio||"";
+document.getElementById("accPhone").value=data.phone||"";
+document.getElementById("accCity").value=data.hometown||"";
+});
+}
+
+function loadLeaderboard(){
+fetch(API+"/leaderboard")
+.then(res=>res.json())
+.then(data=>{
+let html="";
+data.forEach((u,i)=>{
+html+=`<p>${i+1}. ${u.username} — ${u.blocks} blocks</p>`;
+});
+document.getElementById("leaderboardList").innerHTML=html;
+});
 }
 
 </script>
