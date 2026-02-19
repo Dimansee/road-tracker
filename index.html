@@ -78,10 +78,12 @@
 <script>
 
 const API = "https://territory-backend-production.up.railway.app";
-const gridSize = 0.0005;
+const gridSize = 0.0002;
 
 let userId = null;
 let username = prompt("Enter username:");
+let currentCity = null;
+let visitedCities = new Set();
 
 fetch(API + "/login", {
     method: "POST",
@@ -102,11 +104,15 @@ function showScreen(id, element) {
 
     document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
     element.classList.add("active");
+
+    if(id === "tour"){
+        renderVisitedCities();
+    }
 }
 
 showScreen("home", document.querySelector(".tab"));
 
-let map = L.map('map').setView([0,0],2);
+let map = L.map('map');
 
 L.tileLayer(
     'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
@@ -151,11 +157,54 @@ function loadTerritories(){
     });
 }
 
+function reverseGeocode(lat, lng){
+    fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`)
+    .then(res=>res.json())
+    .then(data=>{
+        if(!data.address) return;
+
+        let detectedCity =
+            data.address.city ||
+            data.address.town ||
+            data.address.village ||
+            data.address.hamlet ||
+            data.address.county;
+
+        if(detectedCity && detectedCity !== currentCity){
+            currentCity = detectedCity;
+            visitedCities.add(currentCity);
+            console.log("Entered city:", currentCity);
+        }
+    })
+    .catch(err=>{
+        console.log("Reverse geocode error:", err);
+    });
+}
+
+function renderVisitedCities(){
+    let tourScreen = document.getElementById("tour");
+
+    let cityList = "<ul style='padding:20px;'>";
+    visitedCities.forEach(city=>{
+        cityList += "<li>" + city + "</li>";
+    });
+    cityList += "</ul>";
+
+    tourScreen.innerHTML = `
+        <h2 style="padding:20px;">City Tour</h2>
+        <p style="padding:20px;">Cities you have visited:</p>
+        ${cityList}
+    `;
+}
+
 function startTracking(){
     navigator.geolocation.watchPosition(pos=>{
 
         let lat = pos.coords.latitude;
         let lng = pos.coords.longitude;
+
+        // Reverse geocode city
+        reverseGeocode(lat, lng);
 
         let blockId = getBlockId(lat,lng);
 
@@ -175,11 +224,15 @@ function startTracking(){
 
         if(!marker){
             marker=L.marker([lat,lng]).addTo(map);
-            map.setView([lat,lng],17);
+            map.setView([lat,lng],18);
         }else{
             marker.setLatLng([lat,lng]);
         }
 
+    }, err=>{
+        alert("Location access denied.");
+    }, {
+        enableHighAccuracy: true
     });
 }
 
@@ -187,3 +240,4 @@ function startTracking(){
 
 </body>
 </html>
+
