@@ -1,134 +1,3 @@
-<!DOCTYPE html>
-<html>
-<head>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Territory Runner</title>
-
-<link rel="stylesheet"
-href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-
-<style>
-html, body {
-  margin:0;
-  padding:0;
-  height:100%;
-  font-family:Arial;
-  overflow:hidden;
-}
-
-.screen {
-  position:absolute;
-  top:0;
-  left:0;
-  right:0;
-  bottom:65px;
-  display:none;
-}
-
-#map,#tourMap,#territoryMap,#updatesMap{
-  height:100%;
-  width:100%;
-}
-
-.bottom-nav{
-  position:fixed;
-  bottom:0;
-  left:0;
-  right:0;
-  height:65px;
-  background:#111;
-  display:flex;
-  align-items:center;
-  justify-content:space-around;
-  color:white;
-  z-index:9999;
-}
-
-.tab{
-  flex:1;
-  text-align:center;
-  font-size:13px;
-  cursor:pointer;
-}
-
-.active{
-  background:#2ecc71;
-  padding:8px;
-  border-radius:10px;
-}
-
-.account-box{
-  padding:20px;
-}
-
-input,button{
-  width:100%;
-  padding:10px;
-  margin-bottom:12px;
-  border-radius:8px;
-  border:1px solid #ccc;
-}
-
-button{
-  background:#2ecc71;
-  color:white;
-  border:none;
-}
-
-</style>
-</head>
-<body>
-
-<!-- SCREENS -->
-
-<div id="home" class="screen">
-  <div id="map"></div>
-</div>
-
-<div id="tour" class="screen">
-  <div id="tourMap"></div>
-</div>
-
-<div id="territory" class="screen">
-  <div id="territoryMap"></div>
-</div>
-
-<div id="updates" class="screen">
-  <div id="updatesMap"></div>
-</div>
-
-<div id="leaderboard" class="screen">
-  <div style="padding:20px;">
-    <h3>Leaderboard</h3>
-    <div id="leaderboardList"></div>
-  </div>
-</div>
-
-<div id="account" class="screen">
-  <div class="account-box">
-    <h3>Profile</h3>
-    <input id="accUsername" disabled>
-    <input id="accBio" placeholder="Bio">
-    <input id="accPhone" placeholder="Phone">
-    <input id="accCity" placeholder="Hometown">
-    <button onclick="saveProfile()">Save Profile</button>
-  </div>
-</div>
-
-<!-- BOTTOM NAV -->
-
-<div class="bottom-nav">
-  <div class="tab active" onclick="showScreen('home',this)">Home</div>
-  <div class="tab" onclick="showScreen('tour',this)">Tour</div>
-  <div class="tab" onclick="showScreen('territory',this)">Territory</div>
-  <div class="tab" onclick="showScreen('updates',this)">Updates</div>
-  <div class="tab" onclick="showScreen('leaderboard',this)">Ranks</div>
-  <div class="tab" onclick="showScreen('account',this)">Account</div>
-</div>
-
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
-
 <script>
 
 const API="https://territory-backend-production.up.railway.app";
@@ -185,10 +54,73 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(tourMap)
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(territoryMap);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(updatesMap);
 
+/* ===========================
+   🔥 NEW UPDATES SYSTEM
+=========================== */
+
+let newsMarkersLayer = L.layerGroup().addTo(updatesMap);
+let heatLayer;
+
+function loadNewsForLocation(lat,lng){
+
+fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`)
+.then(res=>res.json())
+.then(data=>{
+
+let city = data.address.city || data.address.town || data.address.village;
+
+if(!city){
+  console.log("City not found");
+  return;
+}
+
+fetch(API+"/news/"+city)
+.then(res=>res.json())
+.then(articles=>{
+
+  newsMarkersLayer.clearLayers();
+  if(heatLayer) updatesMap.removeLayer(heatLayer);
+
+  let heatPoints=[];
+
+  articles.forEach(article=>{
+
+    if(!article.image) return;
+
+    let randomLat = lat + (Math.random()-0.5)/300;
+    let randomLng = lng + (Math.random()-0.5)/300;
+
+    heatPoints.push([randomLat, randomLng, 0.8]);
+
+    let icon = L.divIcon({
+      html:`<img src="${article.image}" 
+      style="width:45px;height:45px;border-radius:50%;border:3px solid white;box-shadow:0 0 10px rgba(0,0,0,0.3)">`
+    });
+
+    L.marker([randomLat, randomLng],{icon:icon})
+    .bindPopup(`
+      <b>${article.title}</b><br>
+      <a href="${article.url}" target="_blank">Read more</a>
+    `)
+    .addTo(newsMarkersLayer);
+
+  });
+
+  heatLayer = L.heatLayer(heatPoints,{
+    radius:30,
+    blur:25
+  }).addTo(updatesMap);
+
+});
+
+});
+}
+
+/* =========================== */
+
 let marker;
 let myBlocks=[];
 let drawnBlocks={};
-let newsLoaded=false;
 
 function getBlockId(lat,lng){
   let x=Math.floor(lat/gridSize);
@@ -258,45 +190,9 @@ navigator.geolocation.watchPosition(pos=>{
     marker.setLatLng([lat,lng]);
   }
 
-  if(!newsLoaded){
-    newsLoaded=true;
-    fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`)
-    .then(res=>res.json())
-    .then(data=>{
-      let city=data.address.city || data.address.town || data.address.village;
-      loadNews(city,lat,lng);
-    });
-  }
+  // 🔥 LOAD NEWS EVERY TIME LOCATION CHANGES
+  loadNewsForLocation(lat,lng);
 
-});
-}
-
-function loadNews(city,lat,lng){
-fetch(API+"/news/"+city)
-.then(res=>res.json())
-.then(data=>{
-  let heatPoints=[];
-
-  data.forEach(article=>{
-    if(!article.image) return;
-
-    let randomLat=lat+(Math.random()-0.5)/300;
-    let randomLng=lng+(Math.random()-0.5)/300;
-
-    heatPoints.push([randomLat,randomLng,0.7]);
-
-    let icon=L.divIcon({
-      html:`<img src="${article.image}"
-      style="width:40px;height:40px;border-radius:50%;border:2px solid white;">`
-    });
-
-    L.marker([randomLat,randomLng],{icon:icon})
-    .addTo(updatesMap)
-    .bindPopup(`<b>${article.title}</b><br>
-    <a href="${article.url}" target="_blank">Read more</a>`);
-  });
-
-  L.heatLayer(heatPoints,{radius:25}).addTo(updatesMap);
 });
 }
 
@@ -337,5 +233,3 @@ document.getElementById("leaderboardList").innerHTML=html;
 }
 
 </script>
-</body>
-</html>
